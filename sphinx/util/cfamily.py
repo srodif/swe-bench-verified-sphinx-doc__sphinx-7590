@@ -66,7 +66,7 @@ char_literal_re = re.compile(r'''(?x)
       ))
     )'
 ''')
-udl_suffix_re = re.compile(r'[a-zA-Z][a-zA-Z0-9_]*')  # User-defined literal suffix
+udl_suffix_re = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]*')  # User-defined literal suffix
 
 
 def verify_description_mode(mode: str) -> None:

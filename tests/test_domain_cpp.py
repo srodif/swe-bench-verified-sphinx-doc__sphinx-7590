@@ -176,7 +176,13 @@ def test_expressions():
         exprCheck(p + "'\\U0001f34c'", t + "127820")
         exprCheck(p + "'\\U0001F34C'", t + "127820")
 
-    # TODO: user-defined lit
+    # user-defined literals
+    exprCheck('123q_kg', 'L123liq_kgE')
+    exprCheck('3.14q_m', 'L3.14liq_mE') 
+    exprCheck('6.62607015e-34q_J', 'L6.62607015e-34liq_JE')
+    exprCheck('1q_s', 'L1liq_sE')
+    exprCheck('"hello"_str', 'L"hello"li_strE')
+    exprCheck("'c'_char", "L'c'li_charE")
     exprCheck('(... + Ns)', '(... + Ns)', id4='flpl2Ns')
     exprCheck('(Ns + ...)', '(Ns + ...)', id4='frpl2Ns')
     exprCheck('(Ns + ... + 0)', '(Ns + ... + 0)', id4='fLpl2NsL0E')
