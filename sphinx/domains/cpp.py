@@ -35,7 +35,7 @@ from sphinx.util.cfamily import (
     BaseParser, DefinitionError, UnsupportedMultiCharacterCharLiteral,
     identifier_re, anon_identifier_re, integer_literal_re, octal_literal_re,
     hex_literal_re, binary_literal_re, float_literal_re,
-    char_literal_re
+    char_literal_re, udl_suffix_re
 )
 from sphinx.util.docfields import Field, GroupedField
 from sphinx.util.docutils import SphinxDirective
@@ -875,6 +875,24 @@ class ASTCharLiteral(ASTLiteral):
 
     def get_id(self, version: int) -> str:
         return self.type + str(self.value)
+
+    def describe_signature(self, signode: TextElement, mode: str,
+                           env: "BuildEnvironment", symbol: "Symbol") -> None:
+        txt = str(self)
+        signode.append(nodes.Text(txt, txt))
+
+
+class ASTUserDefinedLiteral(ASTLiteral):
+    def __init__(self, literal: str, suffix: str) -> None:
+        self.literal = literal
+        self.suffix = suffix
+
+    def _stringify(self, transform: StringifyTransform) -> str:
+        return self.literal + self.suffix
+
+    def get_id(self, version: int) -> str:
+        # Use a simple mangling scheme for user-defined literals
+        return "L%sli%sE" % (self.literal, self.suffix)
 
     def describe_signature(self, signode: TextElement, mode: str,
                            env: "BuildEnvironment", symbol: "Symbol") -> None:
@@ -4662,27 +4680,50 @@ class DefinitionParser(BaseParser):
                       integer_literal_re, octal_literal_re]:
             pos = self.pos
             if self.match(regex):
+                # Handle standard suffixes
                 while self.current_char in 'uUlLfF':
                     self.pos += 1
-                return ASTNumberLiteral(self.definition[pos:self.pos])
+                
+                # Check for user-defined literal suffix
+                literal_end = self.pos
+                if self.match(udl_suffix_re):
+                    # It's a user-defined literal
+                    literal_part = self.definition[pos:literal_end]
+                    suffix_part = self.matched_text
+                    return ASTUserDefinedLiteral(literal_part, suffix_part)
+                else:
+                    # Standard numeric literal
+                    return ASTNumberLiteral(self.definition[pos:self.pos])
 
         string = self._parse_string()
         if string is not None:
-            return ASTStringLiteral(string)
+            # Check for user-defined string literal suffix
+            if self.match(udl_suffix_re):
+                suffix_part = self.matched_text
+                return ASTUserDefinedLiteral(string, suffix_part)
+            else:
+                return ASTStringLiteral(string)
 
         # character-literal
         if self.match(char_literal_re):
             prefix = self.last_match.group(1)  # may be None when no prefix
             data = self.last_match.group(2)
-            try:
-                return ASTCharLiteral(prefix, data)
-            except UnicodeDecodeError as e:
-                self.fail("Can not handle character literal. Internal error was: %s" % e)
-            except UnsupportedMultiCharacterCharLiteral:
-                self.fail("Can not handle character literal"
-                          " resulting in multiple decoded characters.")
+            char_literal_str = self.matched_text
+            
+            # Check for user-defined character literal suffix
+            if self.match(udl_suffix_re):
+                suffix_part = self.matched_text
+                return ASTUserDefinedLiteral(char_literal_str, suffix_part)
+            else:
+                try:
+                    return ASTCharLiteral(prefix, data)
+                except UnicodeDecodeError as e:
+                    self.fail("Can not handle character literal. Internal error was: %s" % e)
+                except UnsupportedMultiCharacterCharLiteral:
+                    self.fail("Can not handle character literal"
+                              " resulting in multiple decoded characters.")
 
-        # TODO: user-defined lit
+        # user-defined literals are now handled above in numeric, string, and character literal sections
         return None
 
     def _parse_fold_or_paren_expression(self) -> ASTExpression:
